@@ -14,6 +14,7 @@
     }
     html,body{height:100%; margin:0; background:var(--bg); color:var(--green); font-family:var(--mono);}
 
+    /* ===== MATRIX CANVAS ===== */
     #matrix{
       position: fixed;
       inset: 0;
@@ -114,11 +115,14 @@
       margin-top:12px;
       width:100%;
       display:flex;
+      flex-direction:column;
+      align-items:center;
       justify-content:center;
+      gap:10px;
     }
 
     .replay{
-      margin-top:25px;
+      margin-top:10px;
       display:inline-flex;
       align-items:center;
       justify-content:center;
@@ -134,8 +138,27 @@
       user-select:none;
     }
 
-    .replay:active{
-      transform: scale(0.98);
+    .replay:active{ transform: scale(0.98); }
+
+    /* Texto parpadeante */
+    .blinkText{
+      font-size:14px;
+      color:rgba(0,255,102,.85);
+      text-shadow: var(--glow);
+      letter-spacing: .2px;
+      animation: blinkText 1s step-end infinite;
+      padding:4px 8px;
+      border-radius:8px;
+      border:1px dashed rgba(0,255,102,.25);
+      background: rgba(0,0,0,.25);
+    }
+    @keyframes blinkText { 50% { opacity:0; } }
+
+    /* Botón “deshabilitado” mientras escribe */
+    .disabledBtn{
+      pointer-events:none;
+      opacity:.45;
+      filter: grayscale(20%);
     }
   </style>
 </head>
@@ -146,23 +169,22 @@
   <div class="wrap">
     <div>
 
-      <!-- ===== PANTALLA INICIAL ===== -->
+      <!-- ===== PANTALLA INICIAL (con tecleo) ===== -->
       <div id="preMission">
         <div class="terminal" role="img" aria-label="Inicio de misión">
           <div class="bar">
             <span class="dot"></span><span class="dot"></span><span class="dot"></span>
             <span class="title">PRE-MISIÓN • v1.0.1</span>
           </div>
-          <div class="screen">
->> Están llegando al final de la misión...
-
-Si quieren continuar, den clic en el botón de abajo:
-
-          </div>
+          <div class="screen" id="preScreen"></div>
         </div>
 
         <div class="hint">
-          <a class="replay" href="#" id="startMissionBtn">Continuar con la misión</a>
+          <div id="preBlink" class="blinkText" style="display:none;">
+            ⬇ DA CLIC AL BOTÓN PARA CONTINUAR ⬇
+          </div>
+
+          <a class="replay disabledBtn" href="#" id="startMissionBtn">Continuar con la misión</a>
         </div>
       </div>
 
@@ -188,6 +210,19 @@ Si quieren continuar, den clic en el botón de abajo:
   <audio id="bgAudio" src="audio/bg.mp3" preload="auto"></audio>
 
   <script>
+    // ===== Texto inicial (PRE-MISIÓN) =====
+    const PRE_LINES = [
+      ">> Señal detectada...",
+      ">> Sincronizando canal seguro...",
+      "",
+      ">> Están llegando al final de la misión.",
+      "",
+      "   Si quieren continuar,",
+      "   den clic en el botón de abajo.",
+      ""
+    ];
+
+    // ===== Texto principal (tu contenido original) =====
     const LINES = [
       ">> Conexión establecida...",
       ">> Verificando identidad...",
@@ -228,72 +263,116 @@ Si quieren continuar, den clic en el botón de abajo:
       "",
       "",
       "",
-      "",
       ">> Fin de transmisión."
     ];
+
+    // Velocidades (ms)
+    const PRE_TYPE_SPEED = 42;
+    const PRE_LINE_DELAY = 320;
+    const PRE_BOOT_DELAY = 450;
 
     const TYPE_SPEED = 55;
     const LINE_DELAY = 450;
     const BOOT_DELAY = 650;
 
+    // Destino en Google Maps
     const DEST_LAT = 20.740095566467193;
     const DEST_LNG = -99.94133649789794;
 
+    // UI
     const preMission = document.getElementById("preMission");
     const missionUI = document.getElementById("missionUI");
+
+    const preScreen = document.getElementById("preScreen");
+    const preBlink = document.getElementById("preBlink");
     const startMissionBtn = document.getElementById("startMissionBtn");
 
     const screen = document.getElementById("screen");
     const continueBtn = document.getElementById("continueBtn");
+
     const bgAudio = document.getElementById("bgAudio");
 
     function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
-    function scrollToBottom() { screen.scrollTop = screen.scrollHeight; }
+
+    function scrollToBottom(el) {
+      el.scrollTop = el.scrollHeight;
+    }
 
     function openGoogleMaps(){
       const url = `https://www.google.com/maps/dir/?api=1&destination=${DEST_LAT},${DEST_LNG}&travelmode=driving`;
       window.location.href = url;
     }
 
-    async function typeAll(){
-      continueBtn.style.display = "none";
-      screen.textContent = "";
+    // ===== Motor de tecleo genérico =====
+    async function typeLines({ targetEl, lines, typeSpeed, lineDelay, bootDelay }) {
+      targetEl.textContent = "";
       const cursor = document.createElement("span");
       cursor.className = "cursor";
-      screen.appendChild(cursor);
+      targetEl.appendChild(cursor);
 
-      await sleep(BOOT_DELAY);
+      await sleep(bootDelay);
 
-      for (const line of LINES){
+      for (const line of lines){
         for (let i = 0; i < line.length; i++){
           cursor.insertAdjacentText("beforebegin", line[i]);
-          scrollToBottom();
-          await sleep(TYPE_SPEED + Math.random()*12);
+          scrollToBottom(targetEl);
+          await sleep(typeSpeed + Math.random()*12);
         }
         cursor.insertAdjacentText("beforebegin", "\n");
-        scrollToBottom();
-        await sleep(LINE_DELAY);
+        scrollToBottom(targetEl);
+        await sleep(lineDelay);
       }
-
-      continueBtn.style.display = "inline-flex";
-      scrollToBottom();
     }
 
-    // Iniciar misión: oculta intro + muestra UI + arranca audio + tecleo
+    // ===== PRE-MISIÓN: escribe + habilita botón + muestra parpadeo =====
+    async function startPreMissionTyping(){
+      preBlink.style.display = "none";
+      startMissionBtn.classList.add("disabledBtn");
+
+      await typeLines({
+        targetEl: preScreen,
+        lines: PRE_LINES,
+        typeSpeed: PRE_TYPE_SPEED,
+        lineDelay: PRE_LINE_DELAY,
+        bootDelay: PRE_BOOT_DELAY
+      });
+
+      // Al terminar: muestra el texto parpadeante y habilita botón
+      preBlink.style.display = "inline-flex";
+      startMissionBtn.classList.remove("disabledBtn");
+    }
+
+    // ===== Misión principal =====
+    async function typeAll(){
+      continueBtn.style.display = "none";
+
+      await typeLines({
+        targetEl: screen,
+        lines: LINES,
+        typeSpeed: TYPE_SPEED,
+        lineDelay: LINE_DELAY,
+        bootDelay: BOOT_DELAY
+      });
+
+      continueBtn.style.display = "inline-flex";
+      scrollToBottom(screen);
+    }
+
+    // Click: pasar a misión + audio bg + tecleo principal
     startMissionBtn.addEventListener("click", async (e) => {
       e.preventDefault();
 
+      // Oculta intro, muestra misión
       preMission.style.display = "none";
       missionUI.style.display = "block";
 
-      // Audio totalmente background (sin controles)
+      // Audio background
       try {
         bgAudio.loop = true;
         bgAudio.volume = 0.55;
         await bgAudio.play();
       } catch (err) {
-        // Si algún navegador lo bloquea, ya hubo gesto del usuario,
-        // pero si aún así falla, no rompemos la experiencia.
+        // Si el navegador lo bloquea por algo raro, no rompemos la experiencia.
       }
 
       typeAll();
@@ -340,7 +419,8 @@ Si quieren continuar, den clic en el botón de abajo:
 
     setInterval(drawMatrix, 40);
 
-    // Ya NO auto-iniciamos el tecleo al abrir.
+    // Auto-inicio: ahora inicia la PRE-MISIÓN con tecleo
+    startPreMissionTyping();
   </script>
 </body>
 </html>

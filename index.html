@@ -14,7 +14,6 @@
     }
     html,body{height:100%; margin:0; background:var(--bg); color:var(--green); font-family:var(--mono);}
 
-    /* ===== MATRIX CANVAS ===== */
     #matrix{
       position: fixed;
       inset: 0;
@@ -23,7 +22,6 @@
       opacity: 0.25;
     }
 
-    /* Fondo tipo “scanlines” */
     body::before{
       content:"";
       position:fixed; inset:0;
@@ -41,7 +39,6 @@
       z-index: 1;
     }
 
-    /* Sutil “viñeta” */
     body::after{
       content:"";
       position:fixed; inset:-40px;
@@ -61,7 +58,6 @@
       z-index: 3;
     }
 
-    /* centra como bloque la terminal + hint */
     .wrap > div{
       width: min(920px, 100%);
       display:flex;
@@ -135,9 +131,9 @@
       font-size:16px;
       height:56px;
       min-width:260px;
+      user-select:none;
     }
 
-    /* (Opcional) efecto al tocar */
     .replay:active{
       transform: scale(0.98);
     }
@@ -145,30 +141,62 @@
 </head>
 <body>
 
-  <!-- MATRIX BACKGROUND -->
   <canvas id="matrix"></canvas>
 
   <div class="wrap">
     <div>
-      <div class="terminal" role="img" aria-label="Terminal de misión">
-        <div class="bar">
-          <span class="dot"></span><span class="dot"></span><span class="dot"></span>
-          <span class="title">SECURE CONSOLE • v1.0.1</span>
+
+      <!-- ===== PANTALLA INICIAL ===== -->
+      <div id="preMission">
+        <div class="terminal" role="img" aria-label="Inicio de misión">
+          <div class="bar">
+            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+            <span class="title">PRE-MISIÓN • v1.0.1</span>
+          </div>
+          <div class="screen">
+>> Están llegando al final de la misión...
+
+Si quieren continuar, den clic en el botón de abajo:
+
+          </div>
         </div>
-        <div class="screen" id="screen"></div>
+
+        <div class="hint">
+          <a class="replay" href="#" id="startMissionBtn">Continuar con la misión</a>
+        </div>
       </div>
 
-      <div class="hint">
-        <a class="replay" href="#" id="continueBtn" style="display:none;">Da click para continuar</a>
+      <!-- ===== CONTENIDO ORIGINAL (después del clic) ===== -->
+      <div id="missionUI" style="display:none;">
+        <div class="terminal" role="img" aria-label="Terminal de misión">
+          <div class="bar">
+            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+            <span class="title">SECURE CONSOLE • v1.0.1</span>
+          </div>
+          <div class="screen" id="screen"></div>
+        </div>
+
+        <div class="hint">
+          <a class="replay" href="#" id="continueBtn" style="display:none;">Da click para continuar</a>
+        </div>
       </div>
+
     </div>
   </div>
 
+  <!-- AUDIO BACKGROUND (oculto, sin controles) -->
+  <audio id="bgAudio" src="audio/bg.mp3" preload="auto"></audio>
+
   <script>
-    // ==== PERSONALIZA AQUÍ ====
     const LINES = [
       ">> Conexión establecida...",
       ">> Verificando identidad...",
+      ".",
+      ".",
+      ".",
+      ".",
+      ".",
+      ".",
       ">> Acceso concedido.",
       "",
       "",
@@ -187,9 +215,9 @@
       "",
       ">> CHECKPOINT CONFIRMADO.",
       ">> SOLICITANDO UBICACIÓN...",
-      "",
-      "",
-      "",
+      ".",
+      ".",
+      ".",
       ">> UBICACIÓN CONFIRMADA",
       "",
       "",
@@ -199,29 +227,28 @@
       "",
       "",
       "",
-      ">> Da click para continuar.",
+      "",
       "",
       ">> Fin de transmisión."
     ];
 
-    // Velocidades (ms)
     const TYPE_SPEED = 55;
     const LINE_DELAY = 450;
     const BOOT_DELAY = 650;
 
-    // Destino en Google Maps
     const DEST_LAT = 20.740095566467193;
     const DEST_LNG = -99.94133649789794;
 
-    // ==== Motor de tecleo ====
+    const preMission = document.getElementById("preMission");
+    const missionUI = document.getElementById("missionUI");
+    const startMissionBtn = document.getElementById("startMissionBtn");
+
     const screen = document.getElementById("screen");
     const continueBtn = document.getElementById("continueBtn");
+    const bgAudio = document.getElementById("bgAudio");
 
     function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
-
-    function scrollToBottom() {
-      screen.scrollTop = screen.scrollHeight;
-    }
+    function scrollToBottom() { screen.scrollTop = screen.scrollHeight; }
 
     function openGoogleMaps(){
       const url = `https://www.google.com/maps/dir/?api=1&destination=${DEST_LAT},${DEST_LNG}&travelmode=driving`;
@@ -251,6 +278,26 @@
       continueBtn.style.display = "inline-flex";
       scrollToBottom();
     }
+
+    // Iniciar misión: oculta intro + muestra UI + arranca audio + tecleo
+    startMissionBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
+
+      preMission.style.display = "none";
+      missionUI.style.display = "block";
+
+      // Audio totalmente background (sin controles)
+      try {
+        bgAudio.loop = true;
+        bgAudio.volume = 0.55;
+        await bgAudio.play();
+      } catch (err) {
+        // Si algún navegador lo bloquea, ya hubo gesto del usuario,
+        // pero si aún así falla, no rompemos la experiencia.
+      }
+
+      typeAll();
+    });
 
     continueBtn.addEventListener("click", (e) => {
       e.preventDefault();
@@ -293,8 +340,7 @@
 
     setInterval(drawMatrix, 40);
 
-    // Auto-inicio al abrir
-    typeAll();
+    // Ya NO auto-iniciamos el tecleo al abrir.
   </script>
 </body>
 </html>

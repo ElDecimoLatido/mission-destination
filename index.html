@@ -171,21 +171,16 @@
 
       <!-- ===== PANTALLA INICIAL (con tecleo) ===== -->
       <div id="preMission">
-        <div class="terminal" role="img" aria-label="Inicio de misión">
+        <div class="terminal" role="img" aria-label="Terminal de misión">
           <div class="bar">
             <span class="dot"></span><span class="dot"></span><span class="dot"></span>
-            <span class="title">PRE-MISIÓN • v1.2</span>
+            <span class="title">SECURE CONSOLE • v1.2</span>
           </div>
           <div class="screen" id="preScreen"></div>
         </div>
 
-        <div class="hint">
-          <div id="preBlink" class="blinkText" style="display:none;">
-            ⬇ DA CLIC AL BOTÓN PARA CONTINUAR ⬇
-          </div>
-
-          <a class="replay disabledBtn" href="#" id="startMissionBtn">Continuar con la misión</a>
-        </div>
+        <div class="actions" id="acceptWrap" style="display:none;">
+        <a class="btn primary" href="#" id="acceptBtn">Continuar</a>
       </div>
 
       <!-- ===== CONTENIDO ORIGINAL (después del clic) ===== -->
@@ -217,8 +212,7 @@
       "",
       ">> Están llegando al final de la misión.",
       "",
-      "   Si quieren continuar,",
-      "   den clic en el botón de abajo.",
+      "   ¿Continuar?",
       ""
     ];
 

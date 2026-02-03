@@ -162,7 +162,7 @@
   <canvas id="matrix"></canvas>
 
   <div class="wrap">
-    <div> 
+    <div>
 
       <!-- ===== PANTALLA INICIAL (con tecleo) ===== -->
       <div id="preMission">
@@ -174,9 +174,7 @@
           <div class="screen" id="preScreen"></div>
         </div>
 
-        <!-- ✅ Homologado: prompt parpadeante dentro de la terminal (se inserta por JS) -->
         <div class="hint">
-          <!-- ✅ Botón aparece SOLO al final del tecleo -->
           <a class="replay disabledBtn" href="#" id="acceptBtn" style="display:none;">Continuar</a>
         </div>
       </div>
@@ -213,7 +211,7 @@
       ">> ¿Continuar?"
     ];
 
-    // ===== Texto principal (tu contenido original) =====
+    // ===== Texto principal =====
     const LINES = [
       ">> Conexión establecida...",
       ">> Verificando identidad...",
@@ -303,8 +301,8 @@
       window.location.href = url;
     }
 
-    // ===== Motor de tecleo genérico =====
-    async function typeLines({ targetEl, lines, typeSpeed, lineDelay, bootDelay }) {
+    // ===== Motor de tecleo genérico (con hook por línea) =====
+    async function typeLines({ targetEl, lines, typeSpeed, lineDelay, bootDelay, onLineDone }) {
       targetEl.textContent = "";
       const cursor = document.createElement("span");
       cursor.className = "cursor";
@@ -312,19 +310,28 @@
 
       await sleep(bootDelay);
 
-      for (const line of lines){
+      for (let idx = 0; idx < lines.length; idx++){
+        const line = lines[idx];
+
         for (let i = 0; i < line.length; i++){
           cursor.insertAdjacentText("beforebegin", line[i]);
           scrollToBottom(targetEl);
           await sleep(typeSpeed + Math.random()*12);
         }
+
         cursor.insertAdjacentText("beforebegin", "\n");
         scrollToBottom(targetEl);
+
+        // ✅ Hook: justo al terminar de escribir UNA línea
+        if (typeof onLineDone === "function") {
+          await onLineDone({ line, idx, targetEl });
+        }
+
         await sleep(lineDelay);
       }
     }
 
-    // ✅ Inserta prompt parpadeante dentro de la terminal (homologado)
+    // ✅ Inserta prompt parpadeante dentro de la terminal
     function addPreBlinkPrompt() {
       preScreen.insertAdjacentText("beforeend", "\n");
 
@@ -336,7 +343,7 @@
       scrollToBottom(preScreen);
     }
 
-    // ===== PRE-MISIÓN: escribe + muestra prompt + habilita botón =====
+    // ===== PRE-MISIÓN =====
     async function startPreMissionTyping(){
       acceptBtn.style.display = "none";
       acceptBtn.classList.add("disabledBtn");
@@ -349,7 +356,6 @@
         bootDelay: PRE_BOOT_DELAY
       });
 
-      // Al terminar: prompt parpadeante + botón visible/habilitado
       addPreBlinkPrompt();
       acceptBtn.style.display = "flex";
       acceptBtn.classList.remove("disabledBtn");
@@ -364,36 +370,40 @@
         lines: LINES,
         typeSpeed: TYPE_SPEED,
         lineDelay: LINE_DELAY,
-        bootDelay: BOOT_DELAY
+        bootDelay: BOOT_DELAY,
+        onLineDone: async ({ line }) => {
+          // ✅ Mostrar botón exactamente cuando termina esta línea:
+          if (line.trim() === ">> PUEDE ACCEDER A LA UBICACIÓN SECRETA") {
+            continueBtn.style.display = "inline-flex";
+            scrollToBottom(screen);
+          }
+        }
       });
 
-      continueBtn.style.display = "inline-flex";
-      scrollToBottom(screen);
+      // (Opcional) asegurar que al final siga visible:
+      // continueBtn.style.display = "inline-flex";
+      // scrollToBottom(screen);
     }
 
     // Click: pasar a misión + audio bg + tecleo principal
     acceptBtn.addEventListener("click", async (e) => {
       e.preventDefault();
 
-      // Oculta intro, muestra misión
       preMission.style.display = "none";
       missionUI.style.display = "block";
 
-      // Audio background (no tocamos tu comportamiento, solo seguro)
       try {
         bgAudio.loop = true;
         bgAudio.volume = 0.55;
         await bgAudio.play();
-      } catch (err) {
-        // Si el navegador lo bloquea, no rompemos la experiencia.
-      }
+      } catch (err) {}
 
       typeAll();
     });
 
     continueBtn.addEventListener("click", (e) => {
       e.preventDefault();
-      openGoogleMaps(); // ✅ NO CAMBIADO
+      openGoogleMaps();
     });
 
     // ===== MATRIX RAIN =====
@@ -432,7 +442,7 @@
 
     setInterval(drawMatrix, 40);
 
-    // Auto-inicio: inicia la PRE-MISIÓN con tecleo
+    // Auto-inicio
     startPreMissionTyping();
   </script>
 </body>

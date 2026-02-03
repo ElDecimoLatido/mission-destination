@@ -220,7 +220,7 @@
       "",
       ">> Están llegando al final de la misión.",
       "",
-      "   ¿Continuar?",
+      ">> ¿Continuar?",
       ""
     ];
 
@@ -339,10 +339,10 @@
     function addPreBlinkPrompt(){
       preScreen.insertAdjacentText("beforeend", "\n");
       const prompt = document.createElement("span");
-      prompt.className = "blinkText";
+      prompt.className = "blink";
       prompt.textContent = '[PRESIONE "CONTINUAR"]';
       preScreen.appendChild(prompt);
-      scrollToBottom(preScreen);
+      scrollToBottom();
     }
 
     // ===== PRE-MISIÓN: escribe + muestra prompt + habilita botón =====
@@ -360,7 +360,7 @@
 
       // Al terminar: prompt parpadeante + botón visible/habilitado
       addPreBlinkPrompt();
-      acceptBtn.style.display = "inline-flex";
+      acceptBtn.style.display = "flex";
       acceptBtn.classList.remove("disabledBtn");
     }
 

@@ -336,13 +336,16 @@
     }
 
     // ✅ Inserta prompt parpadeante dentro de la terminal (homologado)
-    function addPreBlinkPrompt(){
+    function addPreBlinkPrompt() {
       preScreen.insertAdjacentText("beforeend", "\n");
+
       const prompt = document.createElement("span");
-      prompt.className = "blink";
+      prompt.className = "blinkText";
+      prompt.style.fontWeight = "800"; // bold fuerte
       prompt.textContent = '[PRESIONE "CONTINUAR"]';
+
       preScreen.appendChild(prompt);
-      scrollToBottom();
+      scrollToBottom(preScreen);
     }
 
     // ===== PRE-MISIÓN: escribe + muestra prompt + habilita botón =====

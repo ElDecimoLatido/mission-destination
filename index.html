@@ -74,6 +74,7 @@
       backdrop-filter: blur(2px);
       border-radius:14px;
       overflow:hidden;
+      position: relative;
     }
     .bar{
       display:flex;
@@ -93,7 +94,6 @@
       white-space:pre-wrap;
       word-break:break-word;
       text-shadow: var(--glow);
-
       max-height: 75vh;
       overflow-y: auto;
       scroll-behavior: smooth;
@@ -119,6 +119,11 @@
       letter-spacing: .2px;
     }
     @keyframes blinkText { 50% { opacity:0; } }
+
+    /* Parpadeo por unos segundos (se apaga después por JS quitando la clase) */
+    .blinkTemp{
+      animation: blinkText 1s steps(2, end) infinite;
+    }
 
     .hint{
       margin-top:12px;
@@ -149,11 +154,53 @@
 
     .replay:active{ transform: scale(0.98); }
 
-    /* Botón “deshabilitado” mientras escribe */
     .disabledBtn{
       pointer-events:none;
       opacity:.45;
       filter: grayscale(20%);
+    }
+
+    /* ===== GLITCH EFFECT ===== */
+    .glitching .screen{
+      animation: glitchJitter 0.22s steps(2,end) infinite;
+      filter: contrast(1.2) saturate(1.2);
+    }
+    .glitching .screen::before,
+    .glitching .screen::after{
+      content: attr(data-glitch);
+      position:absolute;
+      left:16px; right:16px;
+      top:48px; /* aprox: debajo de barra + padding */
+      white-space:pre-wrap;
+      pointer-events:none;
+      opacity:.16;
+      text-shadow: 0 0 18px rgba(0,255,102,.35);
+      mix-blend-mode: screen;
+    }
+    .glitching .screen::before{
+      transform: translate(2px, -1px);
+      clip-path: inset(0 0 55% 0);
+    }
+    .glitching .screen::after{
+      transform: translate(-2px, 1px);
+      clip-path: inset(45% 0 0 0);
+    }
+    @keyframes glitchJitter{
+      0%{ transform: translate(0,0); text-shadow: var(--glow); }
+      25%{ transform: translate(1px,-1px); }
+      50%{ transform: translate(-1px,1px); }
+      75%{ transform: translate(2px,0); }
+      100%{ transform: translate(0,0); }
+    }
+
+    /* Flash dramático */
+    .flash{
+      animation: flashPulse .35s ease-in-out 1;
+    }
+    @keyframes flashPulse{
+      0%{ filter: brightness(1); }
+      40%{ filter: brightness(1.6); }
+      100%{ filter: brightness(1); }
     }
   </style>
 </head>
@@ -164,9 +211,9 @@
   <div class="wrap">
     <div>
 
-      <!-- ===== PANTALLA INICIAL (con tecleo) ===== -->
+      <!-- ===== PRE-MISIÓN ===== -->
       <div id="preMission">
-        <div class="terminal" role="img" aria-label="Terminal de misión">
+        <div class="terminal" id="preTerminal" role="img" aria-label="Terminal de misión">
           <div class="bar">
             <span class="dot"></span><span class="dot"></span><span class="dot"></span>
             <span class="title">SECURE CONSOLE • v1.2</span>
@@ -179,9 +226,9 @@
         </div>
       </div>
 
-      <!-- ===== CONTENIDO ORIGINAL (después del clic) ===== -->
+      <!-- ===== MISIÓN ===== -->
       <div id="missionUI" style="display:none;">
-        <div class="terminal" role="img" aria-label="Terminal de misión">
+        <div class="terminal" id="missionTerminal" role="img" aria-label="Terminal de misión">
           <div class="bar">
             <span class="dot"></span><span class="dot"></span><span class="dot"></span>
             <span class="title">SECURE CONSOLE • v1.2</span>
@@ -191,17 +238,16 @@
 
         <div class="hint">
           <a class="replay" href="#" id="continueBtn" style="display:none;">Obtener ubicación secreta</a>
+          <a class="replay" href="#" id="replayBtn" style="display:none;">Ver de nuevo</a>
         </div>
       </div>
 
     </div>
   </div>
 
-  <!-- AUDIO BACKGROUND (oculto, sin controles) -->
   <audio id="bgAudio" src="audio/bg.mp3" preload="auto"></audio>
 
   <script>
-    // ===== Texto inicial (PRE-MISIÓN) =====
     const PRE_LINES = [
       ">> Señal detectada...",
       ">> Sincronizando canal seguro...",
@@ -211,7 +257,6 @@
       ">> ¿Continuar?"
     ];
 
-    // ===== Texto principal =====
     const LINES = [
       ">> Conexión establecida...",
       ">> Verificando identidad...",
@@ -274,7 +319,13 @@
     const LINE_DELAY = 450;
     const BOOT_DELAY = 650;
 
-    // Destino en Google Maps
+    // Dramático
+    const AFTER_COUNTDOWN_DELAY = 1200; // ✅ más dramático
+    const DESTROY_MESSAGE = [
+      ">> Mensaje destruido."
+    ];
+
+    // Destino Google Maps
     const DEST_LAT = 20.740095566467193;
     const DEST_LNG = -99.94133649789794;
 
@@ -285,10 +336,15 @@
     const preScreen = document.getElementById("preScreen");
     const acceptBtn = document.getElementById("acceptBtn");
 
+    const missionTerminal = document.getElementById("missionTerminal");
     const screen = document.getElementById("screen");
     const continueBtn = document.getElementById("continueBtn");
+    const replayBtn = document.getElementById("replayBtn");
 
     const bgAudio = document.getElementById("bgAudio");
+
+    // ✅ Estado: una vez desbloqueado, queda para replays
+    let isLocationUnlocked = false;
 
     function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
 
@@ -301,7 +357,7 @@
       window.location.href = url;
     }
 
-    // ===== Motor de tecleo genérico (con hook por línea) =====
+    // ===== Motor de tecleo con hook =====
     async function typeLines({ targetEl, lines, typeSpeed, lineDelay, bootDelay, onLineDone }) {
       targetEl.textContent = "";
       const cursor = document.createElement("span");
@@ -322,7 +378,6 @@
         cursor.insertAdjacentText("beforebegin", "\n");
         scrollToBottom(targetEl);
 
-        // ✅ Hook: justo al terminar de escribir UNA línea
         if (typeof onLineDone === "function") {
           await onLineDone({ line, idx, targetEl });
         }
@@ -331,19 +386,44 @@
       }
     }
 
-    // ✅ Inserta prompt parpadeante dentro de la terminal
+    async function typeLineAsSpan({ targetEl, text, className, typeSpeed = 42, lineDelay = 350, bootDelay = 150 }) {
+      // limpia y prepara cursor
+      targetEl.textContent = "";
+      const cursor = document.createElement("span");
+      cursor.className = "cursor";
+      targetEl.appendChild(cursor);
+    
+      await sleep(bootDelay);
+    
+      // crea span que contendrá SOLO la línea final
+      const span = document.createElement("span");
+      if (className) span.className = className;
+      cursor.insertAdjacentElement("beforebegin", span);
+    
+      // teclea dentro del span
+      for (let i = 0; i < text.length; i++) {
+        span.textContent += text[i];
+        scrollToBottom(targetEl);
+        await sleep(typeSpeed + Math.random() * 12);
+      }
+    
+      // salto de línea final
+      cursor.insertAdjacentText("beforebegin", "\n");
+      await sleep(lineDelay);
+    
+      return span; // devolvemos el span por si quieres hacer algo más
+    }
+
+
     function addPreBlinkPrompt() {
       preScreen.insertAdjacentText("beforeend", "\n");
-
       const prompt = document.createElement("span");
       prompt.className = "blink";
       prompt.textContent = '[PRESIONE "CONTINUAR"]';
-
       preScreen.appendChild(prompt);
       scrollToBottom(preScreen);
     }
 
-    // ===== PRE-MISIÓN =====
     async function startPreMissionTyping(){
       acceptBtn.style.display = "none";
       acceptBtn.classList.add("disabledBtn");
@@ -361,9 +441,68 @@
       acceptBtn.classList.remove("disabledBtn");
     }
 
+    // ===== GLITCH helper =====
+    async function triggerGlitch(durationMs = 520) {
+      // Para el pseudo-elemento, duplicamos texto actual (se ve bien en el efecto)
+      screen.setAttribute("data-glitch", screen.textContent || "");
+      missionTerminal.classList.add("glitching");
+      missionTerminal.classList.add("flash");
+      await sleep(durationMs);
+      missionTerminal.classList.remove("glitching");
+      // flash se auto-termina por animación, pero lo quitamos por limpieza
+      await sleep(220);
+      missionTerminal.classList.remove("flash");
+    }
+  
+    async function showDestroyedState() {
+      // ✅ NO ocultamos continueBtn (queda si ya está desbloqueado)
+  
+      // “dramático”
+      await sleep(AFTER_COUNTDOWN_DELAY);
+  
+      // glitch justo antes de borrar
+      await triggerGlitch(560);
+  
+      // Limpia pantalla y escribe mensaje final SOLO en un span
+      const span = await typeLineAsSpan({
+        targetEl: screen,
+        text: DESTROY_MESSAGE[0],
+        className: "blinkTemp", // parpadea solo esta línea
+        typeSpeed: 42,
+        lineDelay: 350,
+        bootDelay: 150
+      });
+      
+      // Mantén el parpadeo unos segundos y luego lo apagas
+      await sleep(2400);
+      span.classList.remove("blinkTemp");
+  
+      // ✅ Hacer que el mensaje "Mensaje destruido" parpadee unos segundos
+      const lastChild = screen.lastElementChild; // normalmente es el cursor
+
+      // ✅ Replay siempre visible después de destrucción
+      replayBtn.style.display = "inline-flex";
+    
+      // ✅ Si ya está desbloqueado, mantenemos visible el botón de ubicación
+      if (isLocationUnlocked) {
+        continueBtn.style.display = "inline-flex";
+      }
+    
+      scrollToBottom(screen);
+    }
+
+
     // ===== Misión principal =====
     async function typeAll(){
-      continueBtn.style.display = "none";
+      // Reset UI (pero sin “perder” unlock)
+      replayBtn.style.display = "none";
+
+      // ✅ si ya desbloqueaste, se queda visible desde el inicio en replays
+      if (isLocationUnlocked) {
+        continueBtn.style.display = "inline-flex";
+      } else {
+        continueBtn.style.display = "none";
+      }
 
       await typeLines({
         targetEl: screen,
@@ -371,21 +510,24 @@
         typeSpeed: TYPE_SPEED,
         lineDelay: LINE_DELAY,
         bootDelay: BOOT_DELAY,
-        onLineDone: async ({ line }) => {
-          // ✅ Mostrar botón exactamente cuando termina esta línea:
+        onLineDone: async ({ line, idx }) => {
+          // ✅ Unlock permanente
           if (line.trim() === ">> PUEDE ACCEDER A LA UBICACIÓN SECRETA") {
+            isLocationUnlocked = true;
             continueBtn.style.display = "inline-flex";
             scrollToBottom(screen);
           }
+
+          // ✅ Al terminar la última línea (1...), autodestruye
+          const isLastLine = idx === (LINES.length - 1);
+          if (isLastLine) {
+            await showDestroyedState();
+          }
         }
       });
-
-      // (Opcional) asegurar que al final siga visible:
-      // continueBtn.style.display = "inline-flex";
-      // scrollToBottom(screen);
     }
 
-    // Click: pasar a misión + audio bg + tecleo principal
+    // Click: pasar a misión + audio + tecleo
     acceptBtn.addEventListener("click", async (e) => {
       e.preventDefault();
 
@@ -404,6 +546,11 @@
     continueBtn.addEventListener("click", (e) => {
       e.preventDefault();
       openGoogleMaps();
+    });
+
+    replayBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      typeAll();
     });
 
     // ===== MATRIX RAIN =====

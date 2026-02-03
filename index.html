@@ -111,6 +111,15 @@
     }
     @keyframes blink { 50% { opacity:0; } }
 
+    .blink{
+      animation: blinkText 1s steps(2, end) infinite;
+      color: rgba(0,255,102,.95);
+      text-shadow: var(--glow);
+      font-weight: 600;
+      letter-spacing: .2px;
+    }
+    @keyframes blinkText { 50% { opacity:0; } }
+
     .hint{
       margin-top:12px;
       width:100%;
@@ -139,25 +148,6 @@
     }
 
     .replay:active{ transform: scale(0.98); }
-
-    /* Texto parpadeante */
-    .blinkText{
-      font-size:14px;
-      color:rgba(0,255,102,.85);
-      text-shadow: var(--glow);
-      letter-spacing: .2px;
-      animation: blinkText 1s step-end infinite;
-      padding:4px 8px;
-      border-radius:8px;
-      border:1px dashed rgba(0,255,102,.25);
-      background: rgba(0,0,0,.25);
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      width: fit-content;
-      max-width: 100%;
-    }
-    @keyframes blinkText { 50% { opacity:0; } }
 
     /* Botón “deshabilitado” mientras escribe */
     .disabledBtn{
@@ -340,8 +330,7 @@
       preScreen.insertAdjacentText("beforeend", "\n");
 
       const prompt = document.createElement("span");
-      prompt.className = "blinkText";
-      prompt.style.fontWeight = "800"; // bold fuerte
+      prompt.className = "blink";
       prompt.textContent = '[PRESIONE "CONTINUAR"]';
 
       preScreen.appendChild(prompt);
